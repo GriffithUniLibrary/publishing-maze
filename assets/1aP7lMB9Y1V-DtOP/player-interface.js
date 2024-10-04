@@ -41,7 +41,9 @@
     'preview:navigate': jumpToContext,
     'preview:changeset': livePreview,
     'targetMode:toggle': toggleTargetMode,
-    'targetMode:focus': selectElementByPath
+    'targetMode:focus': selectElementByPath,
+    'targetMode:translationHovered': handleHoveredTranslation,
+    'targetMode:translationHoverClear': handleClearHoverPath
   }
 
   if (Object.prototype.hasOwnProperty.call(params, 'wmode')) {
@@ -86,13 +88,15 @@
     OnEnterFullscreen: function () {
       sendParentMessage({
         type: 'fullscreen:enter',
-        windowName: window.name
+        windowName: window.name,
+        data: { windowName: window.name }
       })
     },
     OnExitFullscreen: function () {
       sendParentMessage({
         type: 'fullscreen:exit',
-        windowName: window.name
+        windowName: window.name,
+        data: { windowName: window.name }
       })
     },
     OnPlayerClicked: function () {
@@ -166,7 +170,16 @@
 
       return
     }
-    player.JumpToLocation(data.path)
+    player.JumpToLocation(data.path).then((data) => {
+      if (!data || !data?.target) {
+        return
+      }
+
+      sendParentMessage({
+        type: 'preview:navigate:success',
+        data: data.target?.replace(/_player./, '')
+      })
+    })
   }
 
   function triggerPlay() {
@@ -217,6 +230,7 @@
   }
 
   function handleSelectedTargetPath(targetPath) {
+    log('player-interface.js: handleSelectedTargetPath', targetPath)
     sendParentMessage({
       type: 'targetMode:selected',
       data: targetPath
@@ -236,7 +250,28 @@
       return
     }
 
-    player.HighlightObject(path)
+    player.HighlightObject(path, true)
+  }
+
+  function handleHoveredTranslation({ path }) {
+    const player = window.GetPlayer()
+    if (typeof player.HighlightObject !== 'function') {
+      log('player-interface.js: player.HighlightObject is not a function! returning early')
+
+      return
+    }
+
+    player.HighlightObject(path, false)
+  }
+
+  function handleClearHoverPath() {
+    const player = window.GetPlayer()
+    if (typeof player.HighlightObject !== 'function') {
+      log('player-interface.js: player.HighlightObject is not a function! returning early')
+
+      return
+    }
+    player.HighlightObject(null, false)
   }
 
   function toggleTargetMode({ isActive }) {
